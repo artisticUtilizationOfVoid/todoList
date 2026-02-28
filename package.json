@@ -5,9 +5,11 @@
   "author": "Liu Wenlu",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "build": "npm --no-git-tag-version version patch && node clean.js && electron-builder --win",
-    "dev": "node server.js"
+    "start": "tauri dev",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "electron-dev": "node server.js",
+    "electron-build": "electron-builder --win"
   },
   "dependencies": {
     "cors": "^2.8.5",
