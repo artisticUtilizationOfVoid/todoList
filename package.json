@@ -1,0 +1,54 @@
+{
+  "name": "todo-nested-app",
+  "version": "1.0.13",
+  "description": "Infinite nested todo app with SQLite",
+  "author": "Liu Wenlu",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "npm --no-git-tag-version version patch && node clean.js && electron-builder --win",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
+    "electron": "^29.4.6",
+    "electron-builder": "^24.13.3",
+    "pkg": "^5.8.1",
+    "rimraf": "^6.1.3"
+  },
+  "build": {
+    "appId": "com.todonested.app",
+    "productName": "Todo Nested App",
+    "copyright": "Copyright © 2026",
+    "win": {
+      "requestedExecutionLevel": "asInvoker",
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "compression": "maximum"
+    },
+    "files": [
+      "main.js",
+      "server.js",
+      "public/**/*",
+      "node_modules/**/*",
+      "!node_modules/**/*.md",
+      "!node_modules/**/*.txt",
+      "!node_modules/**/*.html"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "npmRebuild": false,
+    "asar": true,
+    "asarUnpack": [
+      "todo.db"
+    ]
+  }
+}
