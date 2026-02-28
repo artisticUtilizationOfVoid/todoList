@@ -1,6 +1,6 @@
 {
   "name": "todo-nested-app",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Infinite nested todo app with SQLite",
   "author": "Liu Wenlu",
   "main": "main.js",
