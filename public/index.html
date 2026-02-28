@@ -1,0 +1,2071 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>无限级分类待办 - Infinity Todo Folders</title>
+    <script src="libs/vue.global.js"></script>
+    <script src="libs/marked.min.js"></script>
+    <link href="libs/remixicon.css" rel="stylesheet" />
+    <style>
+      [v-cloak] {
+        display: none !important;
+      }
+      :root {
+        --bg-color: #f8fafc;
+        --primary: #3b82f6;
+        --primary-hover: #2563eb;
+        --danger: #ef4444;
+        --success: #10b981;
+        --surface: #ffffff;
+        --text-main: #1e293b;
+        --text-muted: #64748b;
+        --border: #e2e8f0;
+        --sidebar-bg: #f1f5f9;
+        --hover-bg: #e2e8f0;
+        --active-bg: #dbeafe;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+        background: var(--bg-color);
+        height: 100vh;
+        color: var(--text-main);
+        overflow: hidden;
+      }
+
+      #app {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100vw;
+      }
+
+      .app-body {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      .titlebar {
+        height: 40px;
+        background: var(--sidebar-bg);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        -webkit-app-region: drag;
+        padding-left: 16px;
+        flex-shrink: 0;
+        user-select: none;
+      }
+
+      .titlebar-pin-btn {
+        -webkit-app-region: no-drag;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        color: var(--text-muted);
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        margin-left: auto;
+        margin-right: 140px;
+      }
+
+      .titlebar-pin-btn:hover {
+        background: var(--hover-bg);
+        color: var(--primary);
+      }
+
+      .titlebar-pin-btn.active {
+        color: white;
+        background: var(--primary);
+      }
+
+      /* ---------------- Left Sidebar (Tree) ---------------- */
+      .sidebar {
+        width: 320px;
+        min-width: 200px;
+        max-width: 50vw;
+        background: var(--sidebar-bg);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+        resize: horizontal;
+        overflow: hidden;
+      }
+
+      .sidebar-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .sidebar-header h1 {
+        font-size: 18px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--primary);
+      }
+
+      .add-root-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 6px;
+        border-radius: 6px;
+        transition: all 0.2s;
+      }
+
+      .add-root-btn:hover {
+        background: var(--hover-bg);
+        color: var(--primary);
+      }
+
+      .tree-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px 10px;
+      }
+
+      .tree-node-wrapper {
+        margin-bottom: 2px;
+      }
+
+      .tree-node-content {
+        display: flex;
+        align-items: center;
+        padding: 8px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.1s ease;
+        gap: 8px;
+      }
+
+      .tree-node-content:hover {
+        background: var(--hover-bg);
+      }
+
+      .tree-node-content.active {
+        background: var(--active-bg);
+        color: var(--primary-hover);
+        font-weight: 500;
+      }
+
+      .toggle-icon {
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-muted);
+        font-size: 14px;
+        transition: transform 0.2s ease;
+      }
+
+      .toggle-icon.expanded {
+        transform: rotate(90deg);
+      }
+
+      .toggle-icon.invisible {
+        visibility: hidden;
+      }
+
+      .folder-icon {
+        color: #fbbf24;
+        font-size: 16px;
+      }
+
+      .folder-icon.completed {
+        color: var(--success);
+      }
+
+      .node-title {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 14px;
+      }
+
+      .node-title.completed {
+        text-decoration: line-through;
+        opacity: 0.6;
+      }
+
+      .tree-children {
+        padding-left: 16px;
+        margin-left: 10px;
+        border-left: 1px dotted var(--border);
+      }
+
+      /* ---------------- Right Content (Details) ---------------- */
+      .main-content {
+        flex: 1;
+        background: var(--surface);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .detail-empty {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-muted);
+      }
+
+      .detail-empty i {
+        font-size: 64px;
+        color: #cbd5e1;
+        margin-bottom: 16px;
+      }
+
+      .detail-header {
+        padding: 24px 32px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+      }
+
+      .breadcrumb {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .detail-title-group {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .detail-title-input {
+        font-size: 24px;
+        font-weight: 600;
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 4px 8px;
+        border-radius: 6px;
+        color: var(--text-main);
+        outline: none;
+        transition: all 0.2s;
+        width: 100%;
+        max-width: 500px;
+        font-family: inherit;
+      }
+
+      .detail-title-input:hover {
+        background: var(--hover-bg);
+      }
+
+      .detail-title-input:focus {
+        background: var(--surface);
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+
+      .detail-title-input.completed {
+        text-decoration: line-through;
+        color: var(--text-muted);
+      }
+
+      .btn-group {
+        display: flex;
+        gap: 8px;
+      }
+
+      .action-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-main);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .action-btn:hover {
+        background: var(--hover-bg);
+      }
+
+      .action-btn.danger {
+        color: var(--danger);
+        border-color: #fecaca;
+        background: #fef2f2;
+      }
+
+      .action-btn.danger:hover {
+        background: #fee2e2;
+      }
+
+      .action-btn.success {
+        background: var(--success);
+        color: white;
+        border-color: var(--success);
+      }
+
+      .action-btn.success:hover {
+        background: #059669;
+      }
+
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 99px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .status-badge.pending {
+        background: #fef3c7;
+        color: #d97706;
+      }
+
+      .status-badge.done {
+        background: #d1fae5;
+        color: var(--success);
+      }
+
+      .detail-body {
+        flex: 1;
+        padding: 32px;
+        overflow-y: auto;
+      }
+
+      .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text-main);
+      }
+
+      /* Detail attributes */
+      .detail-attributes {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .attribute-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: var(--text-main);
+      }
+      .attribute-item select,
+      .attribute-item input {
+        padding: 6px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        outline: none;
+      }
+      .attribute-item select:focus,
+      .attribute-item input:focus {
+        border-color: var(--primary);
+      }
+      .detail-description {
+        width: 100%;
+        margin-bottom: 20px;
+      }
+      .detail-description textarea {
+        width: 100%;
+        min-height: 100px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        resize: vertical;
+        font-family: inherit;
+        font-size: 14px;
+        outline: none;
+      }
+      .detail-description textarea:focus {
+        border-color: var(--primary);
+      }
+
+      /* Priority Badges */
+      .p1 {
+        color: #ef4444 !important;
+      }
+      .p2 {
+        color: #f59e0b !important;
+      }
+      .p3 {
+        color: #3b82f6 !important;
+      }
+
+      /* Drag and Drop Target Classes */
+      .drop-before {
+        border-top: 2px solid var(--primary) !important;
+      }
+      .drop-after {
+        border-bottom: 2px solid var(--primary) !important;
+      }
+      .drop-inside {
+        background: var(--active-bg);
+        box-shadow: inset 0 0 0 2px var(--primary);
+      }
+
+      /* List specifically for direct children of current detail view */
+      .subtasks-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .subtask-item {
+        display: flex;
+        align-items: center;
+        padding: 16px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+        gap: 16px;
+        transition: all 0.2s;
+      }
+
+      .subtask-item:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      }
+
+      .subtask-item.completed {
+        background: #f8fafc;
+      }
+
+      .subtask-checkbox {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        accent-color: var(--success);
+      }
+
+      .subtask-info {
+        flex: 1;
+        cursor: pointer;
+      }
+
+      .subtask-title {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--text-main);
+        margin-bottom: 4px;
+      }
+
+      .subtask-item.completed .subtask-title {
+        text-decoration: line-through;
+        color: var(--text-muted);
+      }
+
+      .subtask-meta {
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      .subtask-actions {
+        display: flex;
+        gap: 4px;
+      }
+
+      .icon-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 16px;
+      }
+
+      .icon-btn:hover {
+        background: var(--hover-bg);
+        color: var(--primary);
+      }
+
+      .icon-btn.danger:hover {
+        color: var(--danger);
+        background: #fee2e2;
+      }
+
+      /* Create Form */
+      .create-form {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 24px;
+        padding: 16px;
+        background: var(--sidebar-bg);
+        border-radius: 12px;
+        border: 1px dashed #cbd5e1;
+      }
+
+      .create-form input {
+        flex: 1;
+        padding: 10px 16px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        outline: none;
+        font-size: 14px;
+        font-family: inherit;
+      }
+
+      .create-form input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+      }
+
+      .create-form button {
+        padding: 10px 20px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .create-form button:hover {
+        background: var(--primary-hover);
+      }
+
+      /* Generic Buttons */
+      .primary-btn {
+        padding: 10px 20px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .primary-btn:hover {
+        background: var(--primary-hover);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      }
+
+      .primary-btn:active {
+        transform: translateY(0);
+      }
+
+      .secondary-btn {
+        padding: 10px 20px;
+        background: var(--surface);
+        color: var(--text-main);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .secondary-btn:hover {
+        background: var(--hover-bg);
+      }
+
+      /* Modal for Root */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+
+      .modal {
+        background: white;
+        padding: 24px;
+        border-radius: 16px;
+        width: 90%;
+        max-width: 400px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      }
+
+      .modal h3 {
+        margin-bottom: 16px;
+        font-size: 18px;
+      }
+
+      .modal input {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 15px;
+        outline: none;
+      }
+
+      .modal input:focus {
+        border-color: var(--primary);
+      }
+
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      /* Context Menu */
+      .context-menu {
+        position: fixed;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow:
+          0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        padding: 4px;
+        z-index: 9999;
+        min-width: 160px;
+      }
+
+      .context-menu-item {
+        padding: 8px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text-main);
+      }
+
+      .context-menu-item:hover {
+        background: var(--hover-bg);
+      }
+
+      .context-menu-item.danger {
+        color: var(--danger);
+      }
+
+      .context-menu-item.danger:hover {
+        background: #fee2e2;
+      }
+
+      .markdown-body {
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--text-main);
+      }
+      .markdown-body h2,
+      .markdown-body h3 {
+        margin-top: 1em;
+        margin-bottom: 0.5em;
+        color: var(--primary);
+      }
+      .markdown-body p,
+      .markdown-body ul {
+        margin-bottom: 1em;
+      }
+      .markdown-body li {
+        margin-left: 1.5em;
+        margin-bottom: 0.25em;
+      }
+      .markdown-body code {
+        background: var(--hover-bg);
+        padding: 2px 4px;
+        border-radius: 4px;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" v-cloak>
+      <div class="titlebar">
+        <div
+          style="
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          "
+        >
+          <i
+            class="ri-checkbox-multiple-line"
+            style="color: var(--primary); font-size: 16px"
+          ></i>
+          Infinity Todo
+        </div>
+        <div
+          style="
+            margin-left: auto;
+            margin-right: 140px;
+            display: flex;
+            gap: 4px;
+            -webkit-app-region: no-drag;
+          "
+        >
+          <button
+            class="titlebar-pin-btn"
+            @click="showIntroModal = true"
+            title="使用说明"
+            style="margin: 0"
+          >
+            <i class="ri-question-line"></i>
+          </button>
+          <button
+            class="titlebar-pin-btn"
+            :class="{ active: isAlwaysOnTop }"
+            @click="toggleAlwaysOnTop"
+            :title="isAlwaysOnTop ? '取消置顶' : '窗口置顶'"
+            style="margin: 0"
+          >
+            <i
+              :class="isAlwaysOnTop ? 'ri-pushpin-fill' : 'ri-pushpin-line'"
+            ></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="app-body">
+        <!-- LEFT: Sidebar Tree -->
+        <div class="sidebar">
+          <div class="sidebar-header">
+            <h1><i class="ri-list-check"></i> 任务列表</h1>
+            <div style="display: flex; gap: 4px">
+              <button class="icon-btn" @click="expandAll" title="全部展开">
+                <i class="ri-expand-up-down-line"></i>
+              </button>
+              <button class="icon-btn" @click="collapseAll" title="全部收起">
+                <i class="ri-contract-up-down-line"></i>
+              </button>
+              <button
+                class="add-root-btn"
+                @click="showRootModal = true"
+                title="新建主任务"
+              >
+                <i class="ri-add-line" style="font-size: 20px"></i>
+              </button>
+            </div>
+          </div>
+          <div
+            style="padding: 10px 16px; border-bottom: 1px solid var(--border)"
+          >
+            <div
+              class="search-box"
+              style="
+                display: flex;
+                align-items: center;
+                background: var(--hover-bg);
+                padding: 6px 10px;
+                border-radius: 6px;
+                border: 1px solid var(--border);
+              "
+            >
+              <i
+                class="ri-search-line"
+                style="color: #94a3b8; margin-right: 6px"
+              ></i>
+              <input
+                type="text"
+                v-model="searchQuery"
+                placeholder="搜索名称或备注..."
+                style="
+                  border: none;
+                  background: transparent;
+                  outline: none;
+                  width: 100%;
+                  font-size: 13px;
+                "
+              />
+            </div>
+          </div>
+          <div class="tree-container">
+            <div
+              v-if="loading"
+              style="padding: 20px; text-align: center; color: #94a3b8"
+            >
+              <i class="ri-loader-4-line ri-spin"></i> 加载中...
+            </div>
+            <div
+              v-else-if="treeData.length === 0"
+              style="
+                padding: 20px;
+                text-align: center;
+                color: #94a3b8;
+                font-size: 14px;
+              "
+            >
+              暂无任务，请点击右上角新建。
+            </div>
+            <tree-node
+              v-else
+              v-for="node in treeData"
+              :key="node.id"
+              :node="node"
+              :level="0"
+              :active-id="activeNodeId"
+              @select="selectNode"
+              @contextmenu="showContextMenu"
+              @toggle-status="handleTreeToggleStatus"
+              @node-drop="handleNodeDrop"
+            ></tree-node>
+          </div>
+        </div>
+
+        <!-- RIGHT: Detail View -->
+        <div class="main-content">
+          <div v-if="!activeNode" class="detail-empty">
+            <i class="ri-folder-open-line"></i>
+            <h2>选择一个任务以查看明细</h2>
+            <p>在左侧树状菜单中点击，或新建一个任务</p>
+          </div>
+
+          <template v-else>
+            <!-- Detail Header -->
+            <div class="detail-header">
+              <div style="flex: 1">
+                <div class="breadcrumb">
+                  <span v-for="(b, i) in activeBreadcrumbs" :key="b.id">
+                    <span
+                      style="cursor: pointer; transition: color 0.2s"
+                      @click="selectNode(b.id)"
+                      onmouseover="this.style.color = '#3B82F6'"
+                      onmouseout="this.style.color = 'var(--text-muted)'"
+                      >{{ b.title }}</span
+                    >
+                    <i
+                      v-if="i < activeBreadcrumbs.length - 1"
+                      class="ri-arrow-right-s-line"
+                      style="margin: 0 4px; color: #cbd5e1"
+                    ></i>
+                  </span>
+                </div>
+                <div class="detail-title-group">
+                  <input
+                    type="text"
+                    v-model="editingTitle"
+                    class="detail-title-input"
+                    :class="{ completed: activeNode.completed === 1 }"
+                    @blur="saveActiveTitle"
+                    @keyup.enter="$event.target.blur()"
+                  />
+                  <div
+                    class="status-badge"
+                    :class="activeNode.completed === 1 ? 'done' : 'pending'"
+                  >
+                    <i
+                      :class="activeNode.completed ===1 ? 'ri-checkbox-circle-fill' : 'ri-time-line'"
+                    ></i>
+                    {{ activeNode.completed === 1 ? '已完成' : '进行中' }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="btn-group">
+                <button
+                  class="action-btn"
+                  :class="activeNode.completed === 1 ? '' : 'success'"
+                  @click="toggleActiveStatus"
+                >
+                  <i
+                    :class="activeNode.completed === 1 ? 'ri-arrow-go-back-line' : 'ri-check-line'"
+                  ></i>
+                  {{ activeNode.completed === 1 ? '标记未完成' : '标记完成' }}
+                </button>
+                <button class="action-btn danger" @click="deleteActive">
+                  <i class="ri-delete-bin-line"></i> 删除
+                </button>
+              </div>
+            </div>
+
+            <!-- Task Attributes Form -->
+            <div class="detail-attributes">
+              <div class="attribute-item">
+                <i class="ri-flag-2-line"></i> 优先级:
+                <select v-model="editingPriority" @change="saveActiveDetails">
+                  <option :value="0">无优先级</option>
+                  <option :value="3">高优先级</option>
+                  <option :value="2">中优先级</option>
+                  <option :value="1">低优先级</option>
+                </select>
+              </div>
+              <div class="attribute-item">
+                <i class="ri-calendar-event-line"></i> 截止日期:
+                <input
+                  type="date"
+                  v-model="editingDueDate"
+                  @change="saveActiveDetails"
+                  @focus="$event.target.showPicker && $event.target.showPicker()"
+                  @click="$event.target.showPicker && $event.target.showPicker()"
+                />
+              </div>
+            </div>
+            <div class="detail-description">
+              <textarea
+                v-model="editingDescription"
+                placeholder="在此添加任务描述备注..."
+                @blur="saveActiveDetails"
+              ></textarea>
+            </div>
+
+            <!-- Detail Body (Direct Children) -->
+            <div class="detail-body">
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-bottom: 16px;
+                "
+              >
+                <h3 class="section-title" style="margin-bottom: 0">
+                  <i class="ri-list-nested"></i> 子任务 ({{
+                  activeNodeChildren.length }})
+                </h3>
+                <div
+                  style="
+                    display: flex;
+                    gap: 12px;
+                    font-size: 13px;
+                    color: var(--text-muted);
+                    align-items: center;
+                  "
+                >
+                  <label
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 4px;
+                      cursor: pointer;
+                    "
+                  >
+                    <input type="checkbox" v-model="moveCompletedToBottom" />
+                    已完成置底
+                  </label>
+                  <div style="display: flex; align-items: center; gap: 4px">
+                    <i class="ri-sort-desc"></i>
+                    <select
+                      v-model="detailSortOption"
+                      style="
+                        padding: 4px 8px;
+                        border: 1px solid var(--border);
+                        border-radius: 6px;
+                        outline: none;
+                        background: var(--surface);
+                        color: var(--text-main);
+                        font-family: inherit;
+                        font-size: 13px;
+                        cursor: pointer;
+                      "
+                    >
+                      <option value="manual">自定义排序</option>
+                      <option value="created_asc">创建时间(正序)</option>
+                      <option value="created_desc">创建时间(倒序)</option>
+                      <option value="priority">优先级(从高到低)</option>
+                      <option value="due_date">截止日期(临近优先)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Create subtask form -->
+              <div class="create-form">
+                <input
+                  type="text"
+                  v-model="newSubtaskTitle"
+                  placeholder="在此新建子任务..."
+                  @keyup.enter="createSubtask"
+                />
+                <button @click="createSubtask">
+                  <i class="ri-add-line"></i> 添加
+                </button>
+              </div>
+
+              <!-- Children List -->
+              <div
+                v-if="activeNodeChildren.length === 0"
+                style="
+                  padding: 40px;
+                  text-align: center;
+                  color: #94a3b8;
+                  border: 1px dashed #e2e8f0;
+                  border-radius: 12px;
+                "
+              >
+                此目录下还没有子项目
+              </div>
+
+              <div v-else class="subtasks-list">
+                <div
+                  v-for="child in activeNodeChildren"
+                  :key="child.id"
+                  class="subtask-item"
+                  :class="{ completed: child.completed === 1 }"
+                >
+                  <input
+                    type="checkbox"
+                    class="subtask-checkbox"
+                    :checked="child.completed === 1"
+                    @change="updateStatus(child.id, $event.target.checked ? 1 : 0)"
+                  />
+
+                  <div class="subtask-info" @click="selectNode(child.id)">
+                    <div class="subtask-title">{{ child.title }}</div>
+                    <div class="subtask-meta">
+                      包含 {{ countNestedChildren(child) }} 个子任务
+                    </div>
+                  </div>
+
+                  <div class="subtask-actions">
+                    <button
+                      class="icon-btn"
+                      title="查看明细"
+                      @click.stop="selectNode(child.id)"
+                    >
+                      <i class="ri-arrow-right-line"></i>
+                    </button>
+                    <button
+                      class="icon-btn danger"
+                      title="删除"
+                      @click.stop="deleteNode(child.id)"
+                    >
+                      <i class="ri-delete-bin-line"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+      <!-- Close app-body -->
+
+      <!-- Root Creation Modal -->
+      <div
+        v-if="showRootModal"
+        class="modal-overlay"
+        @mousedown.self="showRootModal = false"
+      >
+        <div class="modal">
+          <h3>新建主任务</h3>
+          <input
+            type="text"
+            v-model="newRootTitle"
+            placeholder="输入任务名称..."
+            @keyup.enter="createRootAndClose"
+            ref="rootInput"
+          />
+          <div class="modal-actions">
+            <button class="action-btn" @click="showRootModal = false">
+              取消
+            </button>
+            <button class="action-btn success" @click="createRootAndClose">
+              确定
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Click Context Menu -->
+      <div
+        v-if="contextMenu.visible"
+        class="context-menu"
+        :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
+        @click.stop
+      >
+        <div class="context-menu-item" @click="handleContextAction('addRoot')">
+          <i class="ri-folder-add-line"></i>
+          在此新建主任务
+        </div>
+        <div
+          class="context-menu-item"
+          style="color: var(--primary)"
+          @click="handleContextAction('add')"
+        >
+          <i class="ri-add-line"></i>
+          在此新建子任务
+        </div>
+        <div class="context-menu-item" @click="handleContextAction('rename')">
+          <i class="ri-edit-line"></i>
+          重命名
+        </div>
+        <div
+          class="context-menu-item"
+          @click="handleContextAction('toggleStatus')"
+        >
+          <i
+            :class="contextMenu.node.completed === 1 ? 'ri-arrow-go-back-line' : 'ri-check-line'"
+          ></i>
+          {{ contextMenu.node.completed === 1 ? '标记未完成' :
+          '标记完成(含子项)' }}
+        </div>
+        <div
+          class="context-menu-item danger"
+          @click="handleContextAction('delete')"
+        >
+          <i class="ri-delete-bin-line"></i>
+          删除该项 (含子项)
+        </div>
+      </div>
+      <!-- Intro/Help Modal -->
+      <div
+        class="modal-overlay"
+        v-if="showIntroModal"
+        @click.self="showIntroModal = false"
+      >
+        <div
+          class="modal"
+          style="
+            width: 650px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+          "
+        >
+          <h3 style="margin-bottom: 16px; flex-shrink: 0">
+            <i class="ri-book-read-line" style="color: var(--primary)"></i>
+            Infinity Todo 使用说明
+          </h3>
+          <div
+            class="intro-content markdown-body"
+            style="overflow-y: auto; padding-right: 8px; margin-bottom: 20px"
+            v-html="renderedIntroMarkdown"
+          ></div>
+          <div
+            class="modal-actions"
+            style="flex-shrink: 0; display: flex; justify-content: flex-end"
+          >
+            <button class="primary-btn" @click="showIntroModal = false">
+              我知道了
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vue Component Template for Tree Node (Sidebar) -->
+    <template id="tree-node-template">
+      <div class="tree-node-wrapper">
+        <div
+          class="tree-node-content"
+          :class="{ 
+             active: activeId === node.id,
+             'drop-before': dropPosition === 'before',
+             'drop-after': dropPosition === 'after',
+             'drop-inside': dropPosition === 'inside'
+          }"
+          draggable="true"
+          @click.stop="handleClick"
+          @contextmenu.prevent="handleRightClick"
+          @dragstart.stop="handleDragStart"
+          @dragover.prevent.stop="handleDragOver"
+          @dragleave.prevent.stop="handleDragLeave"
+          @drop.prevent.stop="handleDrop"
+        >
+          <div
+            class="toggle-icon"
+            :class="{ 
+                        expanded: isExpanded, 
+                        invisible: !node.children || node.children.length === 0 
+                    }"
+            @click.stop="toggleExpand"
+          >
+            <i class="ri-arrow-right-s-line"></i>
+          </div>
+          <!-- <div class="folder-icon" :class="{ completed: node.completed === 1 }">
+                    <i :class="node.completed === 1 ? 'ri-folder-check-fill' : (isExpanded ? 'ri-folder-open-fill' : 'ri-folder-3-fill')"></i>
+                </div> -->
+
+          <span
+            class="node-title"
+            :class="{ completed: node.completed === 1 }"
+            :title="node.title"
+          >
+            <i
+              :class="node.completed === 1 ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'"
+              @click.stop="$emit('toggle-status', node)"
+              :style="{ color: node.completed === 1 ? 'var(--success)' : '#94a3b8', marginRight: '6px', cursor: 'pointer' }"
+            ></i>
+            <!-- Priority flag -->
+            <i
+              v-if="node.priority > 0"
+              class="ri-flag-2-fill"
+              :class="node.priority === 3 ? 'p1' : (node.priority === 2 ? 'p2' : 'p3')"
+              style="font-size: 12px; margin-right: 4px"
+            ></i>
+            {{ node.title }}
+            <!-- due date badge -->
+            <span
+              v-if="node.due_date"
+              style="
+                font-size: 11px;
+                color: #ef4444;
+                margin-left: 6px;
+                background: #fee2e2;
+                padding: 2px 6px;
+                border-radius: 10px;
+              "
+            >
+              {{ node.due_date }}
+            </span>
+          </span>
+        </div>
+
+        <div
+          class="tree-children"
+          v-show="isExpanded && node.children && node.children.length > 0"
+        >
+          <tree-node
+            v-for="child in node.children"
+            :key="child.id"
+            :node="child"
+            :level="level + 1"
+            :active-id="activeId"
+            @select="$emit('select', $event)"
+            @contextmenu="$emit('contextmenu', $event)"
+            @toggle-status="$emit('toggle-status', $event)"
+            @node-drop="$emit('node-drop', $event)"
+          ></tree-node>
+        </div>
+      </div>
+    </template>
+
+    <script>
+      const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
+
+      const API_BASE = "/api/todos";
+
+      // --- Tree Node Component for Sidebar ---
+      const TreeNode = {
+        name: "TreeNode",
+        template: "#tree-node-template",
+        props: {
+          node: Object,
+          level: Number,
+          activeId: Number,
+        },
+        emits: ["select", "contextmenu", "toggle-status", "node-drop"],
+        setup(props, { emit }) {
+          const isExpanded = ref(false);
+          const dropPosition = ref(null);
+
+          const handleDragStart = (e) => {
+            e.dataTransfer.effectAllowed = "move";
+            window.__draggedNode = props.node;
+          };
+
+          const handleDragOver = (e) => {
+            if (
+              !window.__draggedNode ||
+              window.__draggedNode.id === props.node.id
+            )
+              return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const y = e.clientY - rect.top;
+            if (y < rect.height * 0.25) dropPosition.value = "before";
+            else if (y > rect.height * 0.75) dropPosition.value = "after";
+            else dropPosition.value = "inside";
+          };
+
+          const handleDragLeave = () => {
+            dropPosition.value = null;
+          };
+
+          const handleDrop = (e) => {
+            const pos = dropPosition.value;
+            dropPosition.value = null;
+            const dragged = window.__draggedNode;
+            if (!dragged || dragged.id === props.node.id) return;
+
+            emit("node-drop", { dragged, target: props.node, position: pos });
+            window.__draggedNode = null;
+          };
+
+          const toggleExpand = () => {
+            isExpanded.value = !isExpanded.value;
+          };
+
+          const handleClick = () => {
+            emit("select", props.node.id);
+            if (props.node.children && props.node.children.length > 0) {
+              isExpanded.value = !isExpanded.value;
+            }
+          };
+
+          const handleRightClick = (e) => {
+            emit("contextmenu", { event: e, node: props.node });
+          };
+
+          // Auto expand if instructed from parent
+          watch(
+            () => props.node._forceExpandTs,
+            (val) => {
+              if (val) {
+                isExpanded.value = true;
+              }
+            },
+          );
+          watch(
+            () => props.node._forceCollapseTs,
+            (val) => {
+              if (val) {
+                isExpanded.value = false;
+              }
+            },
+          );
+
+          // Expose to parent to let parent force expand
+          return {
+            isExpanded,
+            dropPosition,
+            toggleExpand,
+            handleClick,
+            handleRightClick,
+            handleDragStart,
+            handleDragOver,
+            handleDragLeave,
+            handleDrop,
+          };
+        },
+      };
+
+      const app = createApp({
+        components: { TreeNode },
+        setup() {
+          const todos = ref([]);
+          const loading = ref(true);
+
+          const showIntroModal = ref(false);
+          const introMarkdown = `
+## 🌟 欢迎使用 Infinity Todo
+
+这是一个拥有**无限级分类目录**功能的待办事项管理软件。
+
+### 🚀 核心功能
+* **层级无限制嵌套**：主任务下可以无限制建立子任务，彻底解构复杂项目。
+* **随时全局置顶**：点击右上角 📌大头针 图标，即可将应用沉浸式悬浮在所有窗口之上。
+* **节点自由拖拽**：鼠标长按任意节点可自由拖拽调整顺序，或将任务扔进其他目录中。
+* **富文本任务详情**：在右侧区域可以为任务设置 **优先级**、**截止日期** 与 **详细描述**。
+* **完全本地化运行**：您的所有数据（\`todo.db\`）都安全存储在本地目录下，无需网络即可秒速载入。
+
+### 💡 快捷操作
+* **键盘快捷键**：选中某项任务后，按下 \`Delete\` 键可快速安全删除。
+* **右键菜单功能**：右键点击目录树的项目，可以快捷进行重命名、完成标记和删除等操作。
+          `;
+          const renderedIntroMarkdown = computed(() => {
+            if (typeof marked !== "undefined" && marked.parse) {
+              return marked.parse(introMarkdown);
+            }
+            return "<p>说明内容载入中...</p>";
+          });
+
+          const activeNodeId = ref(null);
+          const editingTitle = ref("");
+          const editingPriority = ref(0);
+          const editingDueDate = ref("");
+          const editingDescription = ref("");
+
+          const isAlwaysOnTop = ref(false);
+
+          const showRootModal = ref(false);
+          const newRootTitle = ref("");
+          const rootInput = ref(null);
+          const searchQuery = ref("");
+
+          const newSubtaskTitle = ref("");
+
+          const moveCompletedToBottom = ref(false);
+          const detailSortOption = ref("manual");
+
+          const saveSetting = async (key, val) => {
+            try {
+              await fetch(`${API_BASE}/settings`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ [key]: val }),
+              });
+            } catch (e) {
+              console.error("保存设置失败", e);
+            }
+          };
+
+          watch(moveCompletedToBottom, (val) =>
+            saveSetting("todo_move_completed_bottom", val),
+          );
+          watch(detailSortOption, (val) =>
+            saveSetting("todo_detail_sort_option", val),
+          );
+
+          // 1. Array to Tree Transformation
+          const treeMap = computed(() => {
+            const map = {};
+            todos.value.forEach((t) => (map[t.id] = t));
+            return map;
+          });
+
+          const treeData = computed(() => {
+            const roots = [];
+            const map = {};
+
+            // Deep clone to construct the hierarchy each time
+            todos.value.forEach((t) => (map[t.id] = { ...t, children: [] }));
+
+            Object.values(map).forEach((node) => {
+              if (node.parent_id !== null && map[node.parent_id]) {
+                map[node.parent_id].children.push(node);
+              } else {
+                roots.push(node);
+              }
+            });
+
+            // Sort children
+            const sortRecursive = (nodes) => {
+              nodes.sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+              nodes.forEach((n) => sortRecursive(n.children));
+            };
+            sortRecursive(roots);
+
+            // Filtering based on search
+            let resultRoots = roots;
+            if (searchQuery.value) {
+              const q = searchQuery.value.toLowerCase();
+              const filterNodes = (nodes) => {
+                return nodes.filter((n) => {
+                  const matchSelf =
+                    n.title.toLowerCase().includes(q) ||
+                    (n.description && n.description.toLowerCase().includes(q));
+                  const matchedChildren = filterNodes(n.children);
+                  n.children = matchedChildren; // Mutate local clone
+                  if (matchSelf || matchedChildren.length > 0) {
+                    n._forceExpandTs = Date.now(); // Expand path to matches
+                    return true;
+                  }
+                  return false;
+                });
+              };
+              resultRoots = filterNodes(roots);
+            }
+
+            return resultRoots;
+          });
+
+          // Derived state for Detail View
+          const activeNode = computed(() => {
+            if (!activeNodeId.value) return null;
+            return treeMap.value[activeNodeId.value] || null;
+          });
+
+          const activeNodeChildren = computed(() => {
+            if (!activeNode.value) return [];
+            let children = todos.value.filter(
+              (t) => t.parent_id === activeNode.value.id,
+            );
+            return children.sort((a, b) => {
+              if (moveCompletedToBottom.value && a.completed !== b.completed) {
+                return a.completed - b.completed;
+              }
+
+              if (detailSortOption.value === "created_asc") {
+                return a.id - b.id;
+              } else if (detailSortOption.value === "created_desc") {
+                return b.id - a.id;
+              } else if (detailSortOption.value === "priority") {
+                return (b.priority || 0) - (a.priority || 0);
+              } else if (detailSortOption.value === "due_date") {
+                if (!a.due_date && b.due_date) return 1;
+                if (a.due_date && !b.due_date) return -1;
+                if (a.due_date && b.due_date && a.due_date !== b.due_date) {
+                  return a.due_date < b.due_date ? -1 : 1;
+                }
+                return a.id - b.id;
+              }
+
+              return a.sort_order - b.sort_order || a.id - b.id;
+            });
+          });
+
+          const activeBreadcrumbs = computed(() => {
+            if (!activeNode.value) return [];
+            const crumbs = [];
+            let curr = activeNode.value;
+            while (curr) {
+              crumbs.unshift({ id: curr.id, title: curr.title });
+              curr = curr.parent_id ? treeMap.value[curr.parent_id] : null;
+            }
+            return crumbs;
+          });
+
+          // Watch activeNode to sync local editing title
+          watch(
+            activeNode,
+            (newVal) => {
+              if (newVal) {
+                editingTitle.value = newVal.title;
+                editingPriority.value = newVal.priority || 0;
+                editingDueDate.value = newVal.due_date || "";
+                editingDescription.value = newVal.description || "";
+              } else {
+                editingTitle.value = "";
+                editingPriority.value = 0;
+                editingDueDate.value = "";
+                editingDescription.value = "";
+                newSubtaskTitle.value = "";
+              }
+            },
+            { immediate: true },
+          );
+
+          // Watch modal open to auto focus
+          watch(showRootModal, async (val) => {
+            if (val) {
+              await nextTick();
+              if (rootInput.value) rootInput.value.focus();
+            }
+          });
+
+          // --- Methods: API Calls ---
+          const fetchTodos = async () => {
+            if (todos.value.length === 0) {
+              loading.value = true;
+            }
+            try {
+              const res = await fetch(API_BASE);
+              todos.value = await res.json();
+            } catch (e) {
+              console.error("获取失败", e);
+            }
+            loading.value = false;
+          };
+
+          const selectNode = (id) => {
+            activeNodeId.value = id;
+          };
+
+          const createRootAndClose = async () => {
+            if (!newRootTitle.value.trim()) return;
+            await submitCreate(newRootTitle.value.trim(), null);
+            newRootTitle.value = "";
+            showRootModal.value = false;
+          };
+
+          const createSubtask = async () => {
+            if (!newSubtaskTitle.value.trim() || !activeNodeId.value) return;
+            await submitCreate(
+              newSubtaskTitle.value.trim(),
+              activeNodeId.value,
+            );
+            newSubtaskTitle.value = "";
+          };
+
+          const expandAll = () => {
+            todos.value.forEach((t) => (t._forceExpandTs = Date.now()));
+          };
+
+          const collapseAll = () => {
+            todos.value.forEach((t) => (t._forceCollapseTs = Date.now()));
+          };
+
+          const toggleAlwaysOnTop = () => {
+            if (typeof require !== "undefined") {
+              const { ipcRenderer } = require("electron");
+              ipcRenderer.send("toggle-always-on-top");
+            } else {
+              alert("当前环境不支持置顶功能 (非Electron客户端)");
+            }
+          };
+
+          const handleGlobalKeydown = (e) => {
+            // Avoid triggering if focus is on inputs
+            if (
+              e.target.tagName === "INPUT" ||
+              e.target.tagName === "TEXTAREA" ||
+              e.target.tagName === "SELECT"
+            )
+              return;
+
+            if (!activeNodeId.value) return;
+
+            if (e.key === "Delete") {
+              deleteActive();
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              const title = prompt("快速新建子任务至当前项下:");
+              if (title && title.trim()) {
+                submitCreate(title.trim(), activeNodeId.value);
+              }
+            }
+          };
+
+          const submitCreate = async (title, parent_id) => {
+            // Optimistic Creation
+            const tempId = -Date.now();
+            const tempTodo = { id: tempId, title, parent_id, completed: 0 };
+            todos.value.push(tempTodo);
+
+            if (parent_id === null) {
+              selectNode(tempId);
+            } else if (activeNode.value && activeNode.value.id === parent_id) {
+              // Trigger auto-expand on the parent node in the tree
+              activeNode.value._forceExpandTs = Date.now();
+            }
+
+            try {
+              const res = await fetch(API_BASE, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title, parent_id }),
+              });
+              if (res.ok) {
+                const newTodo = await res.json();
+                // Replace temp ID with real ID
+                const idx = todos.value.findIndex((t) => t.id === tempId);
+                if (idx !== -1) {
+                  todos.value.splice(idx, 1, newTodo);
+                }
+                if (activeNodeId.value === tempId) {
+                  activeNodeId.value = newTodo.id;
+                }
+              } else {
+                throw new Error("Add failed");
+              }
+            } catch (e) {
+              console.error("新建失败", e);
+              // Rollback
+              todos.value = todos.value.filter((t) => t.id !== tempId);
+              if (activeNodeId.value === tempId) activeNodeId.value = null;
+            }
+          };
+
+          const deleteNode = async (id) => {
+            // Optimistic Deletion
+            // Find all nested children to remove from local array immediately
+            const idsToRemove = new Set([id]);
+            let added;
+            do {
+              added = false;
+              todos.value.forEach((t) => {
+                if (idsToRemove.has(t.parent_id) && !idsToRemove.has(t.id)) {
+                  idsToRemove.add(t.id);
+                  added = true;
+                }
+              });
+            } while (added);
+
+            // Filter out deleted node & children locally
+            const previousTodos = [...todos.value];
+            todos.value = todos.value.filter((t) => !idsToRemove.has(t.id));
+
+            // Clear active node if it or its parent was deleted
+            if (idsToRemove.has(activeNodeId.value)) {
+              activeNodeId.value = null;
+            }
+
+            try {
+              const res = await fetch(`${API_BASE}/${id}`, {
+                method: "DELETE",
+              });
+              if (!res.ok) throw new Error("Delete failed");
+            } catch (e) {
+              console.error("删除失败", e);
+              // Rollback on failure
+              todos.value = previousTodos;
+            }
+          };
+
+          const deleteActive = () => {
+            if (activeNodeId.value) {
+              const children = todos.value.filter(
+                (t) => t.parent_id === activeNodeId.value,
+              );
+              if (children.length > 0) {
+                if (!confirm("确定要彻底删除该项目及其所有子项目吗？")) return;
+              }
+              deleteNode(activeNodeId.value);
+            }
+          };
+
+          const updateStatus = async (id, completed) => {
+            // Find node and all its nested children to update optimistically
+            const idsToUpdate = new Set([id]);
+            let added;
+            do {
+              added = false;
+              todos.value.forEach((t) => {
+                if (idsToUpdate.has(t.parent_id) && !idsToUpdate.has(t.id)) {
+                  idsToUpdate.add(t.id);
+                  added = true;
+                }
+              });
+            } while (added);
+
+            todos.value.forEach((t) => {
+              if (idsToUpdate.has(t.id)) {
+                t.completed = completed;
+              }
+            });
+
+            try {
+              // Call the recursive endpoint
+              await fetch(`${API_BASE}/${id}/status-recursive`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ completed }),
+              });
+            } catch (e) {
+              console.error("更新状态失败", e);
+              fetchTodos();
+            }
+          };
+
+          const toggleActiveStatus = async () => {
+            if (!activeNode.value) return;
+            const newStatus = activeNode.value.completed === 1 ? 0 : 1;
+            await updateStatus(activeNode.value.id, newStatus);
+          };
+
+          const handleTreeToggleStatus = (node) => {
+            if (!node) return;
+            const newStatus = node.completed === 1 ? 0 : 1;
+            updateStatus(node.id, newStatus);
+          };
+
+          const handleNodeDrop = async (payload) => {
+            const { dragged, target, position } = payload;
+
+            // Validate: prevent dropping into its own descendant
+            let curr = treeMap.value[target.id];
+            while (curr) {
+              if (curr.id === dragged.id) return;
+              curr = curr.parent_id ? treeMap.value[curr.parent_id] : null;
+            }
+
+            const todo = todos.value.find((t) => t.id === dragged.id);
+            if (!todo) return;
+
+            let newParentId = target.parent_id;
+            const updates = [];
+
+            if (position === "inside") {
+              newParentId = target.id;
+              const siblings = todos.value
+                .filter((t) => t.parent_id === newParentId && t.id !== todo.id)
+                .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+              todo.parent_id = newParentId;
+              todo.sort_order =
+                siblings.length > 0
+                  ? siblings[siblings.length - 1].sort_order + 1
+                  : 1;
+              updates.push({
+                id: todo.id,
+                parent_id: newParentId,
+                sort_order: todo.sort_order,
+              });
+
+              const parentNode = treeMap.value[newParentId];
+              if (parentNode) parentNode._forceExpandTs = Date.now();
+            } else {
+              newParentId = target.parent_id;
+              const siblings = todos.value
+                .filter((t) => t.parent_id === newParentId && t.id !== todo.id)
+                .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+              const targetIndex = siblings.findIndex((t) => t.id === target.id);
+
+              if (position === "before") {
+                siblings.splice(Math.max(0, targetIndex), 0, todo);
+              } else {
+                siblings.splice(targetIndex + 1, 0, todo);
+              }
+
+              todo.parent_id = newParentId;
+              siblings.forEach((t, i) => {
+                const order = i + 1;
+                t.sort_order = order;
+                updates.push({
+                  id: t.id,
+                  parent_id: t.parent_id,
+                  sort_order: order,
+                });
+              });
+            }
+
+            if (updates.length > 0) {
+              try {
+                await fetch(API_BASE + "/reorder", {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ updates }),
+                });
+              } catch (e) {
+                console.error("Reorder failed", e);
+                fetchTodos(); // Rollback
+              }
+            }
+          };
+
+          // Context Menu Logic
+          const contextMenu = ref({ visible: false, x: 0, y: 0, node: null });
+
+          const showContextMenu = ({ event, node }) => {
+            contextMenu.value = {
+              visible: true,
+              x: event.clientX,
+              y: event.clientY,
+              node: node,
+            };
+            // Close menu if clicked anywhere else
+            const closeMenu = () => {
+              contextMenu.value.visible = false;
+              window.removeEventListener("click", closeMenu);
+            };
+            setTimeout(() => {
+              window.addEventListener("click", closeMenu);
+            }, 0);
+          };
+
+          const handleContextAction = (action) => {
+            const node = contextMenu.value.node;
+            if (!node) return;
+
+            if (action === "delete") {
+              const children = todos.value.filter(
+                (t) => t.parent_id === node.id,
+              );
+              if (children.length > 0) {
+                if (confirm("确定要彻底删除该项目及其所有子项目吗？")) {
+                  deleteNode(node.id);
+                }
+              } else {
+                deleteNode(node.id);
+              }
+            } else if (action === "toggleStatus") {
+              const newStatus = node.completed === 1 ? 0 : 1;
+              updateStatus(node.id, newStatus);
+            } else if (action === "add") {
+              const title = prompt("请输入子任务名称:");
+              if (title && title.trim()) {
+                submitCreate(title.trim(), node.id);
+              }
+            } else if (action === "addRoot") {
+              const title = prompt("请输入主任务名称:");
+              if (title && title.trim()) {
+                submitCreate(title.trim(), null);
+              }
+            } else if (action === "rename") {
+              const newTitle = prompt("请输入新的名称:", node.title);
+              if (
+                newTitle &&
+                newTitle.trim() &&
+                newTitle.trim() !== node.title
+              ) {
+                const cleanTitle = newTitle.trim();
+                const oldTitle = node.title;
+                const targetTodo = todos.value.find((t) => t.id === node.id);
+                if (targetTodo) targetTodo.title = cleanTitle;
+
+                fetch(`${API_BASE}/${node.id}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ title: cleanTitle }),
+                }).catch((e) => {
+                  console.error("重命名失败", e);
+                  if (targetTodo) targetTodo.title = oldTitle; // Rollback
+                });
+              }
+            }
+            contextMenu.value.visible = false;
+          };
+
+          const saveActiveTitle = async () => {
+            if (!activeNode.value) return;
+            const cleanTitle = editingTitle.value.trim();
+            if (!cleanTitle || cleanTitle === activeNode.value.title) {
+              editingTitle.value = activeNode.value.title; // revert
+              return;
+            }
+
+            // optimistic
+            const t = todos.value.find((x) => x.id === activeNodeId.value);
+            if (t) t.title = cleanTitle;
+
+            try {
+              await fetch(`${API_BASE}/${activeNode.value.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title: cleanTitle }),
+              });
+            } catch (e) {
+              console.error("修改标题失败", e);
+              fetchTodos();
+            }
+          };
+
+          const saveActiveDetails = async () => {
+            if (!activeNode.value) return;
+            const p = parseInt(editingPriority.value, 10) || 0;
+            const d = editingDueDate.value || null;
+            const desc = editingDescription.value || "";
+
+            // optimistic
+            const t = todos.value.find((x) => x.id === activeNodeId.value);
+            if (t) {
+              t.priority = p;
+              t.due_date = d;
+              t.description = desc;
+            }
+
+            try {
+              await fetch(`${API_BASE}/${activeNode.value.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  priority: p,
+                  due_date: d,
+                  description: desc,
+                }),
+              });
+            } catch (e) {
+              console.error("保存详细失败", e);
+              fetchTodos();
+            }
+          };
+
+          // Utility to count deep children
+          const countNestedChildren = (node) => {
+            const children = todos.value.filter((t) => t.parent_id === node.id);
+            let total = children.length;
+            children.forEach((c) => {
+              total += countNestedChildren(c);
+            });
+            return total;
+          };
+
+          onMounted(() => {
+            fetchTodos();
+
+            if (typeof require !== "undefined") {
+              const { ipcRenderer } = require("electron");
+              ipcRenderer.on("always-on-top-changed", (event, state) => {
+                isAlwaysOnTop.value = state;
+              });
+            }
+
+            // Load persistent settings from DB
+            fetch(`${API_BASE}/settings`)
+              .then((res) => res.json())
+              .then((data) => {
+                if (data.todo_move_completed_bottom !== undefined) {
+                  moveCompletedToBottom.value =
+                    data.todo_move_completed_bottom === "true";
+                }
+                if (data.todo_detail_sort_option !== undefined) {
+                  detailSortOption.value = data.todo_detail_sort_option;
+                }
+
+                // Show intro if never shown
+                if (data.todo_intro_shown !== "true") {
+                  showIntroModal.value = true;
+                  saveSetting("todo_intro_shown", "true");
+                }
+              })
+              .catch((e) => console.error("加载设置失败", e));
+
+            window.addEventListener("keydown", handleGlobalKeydown);
+          });
+
+          return {
+            todos,
+            loading,
+            treeData,
+            searchQuery,
+            activeNodeId,
+            activeNode,
+            activeNodeChildren,
+            activeBreadcrumbs,
+            editingTitle,
+            editingPriority,
+            editingDueDate,
+            editingDescription,
+            showRootModal,
+            newRootTitle,
+            rootInput,
+            newSubtaskTitle,
+            moveCompletedToBottom,
+            detailSortOption,
+            expandAll,
+            collapseAll,
+            selectNode,
+            createRootAndClose,
+            createSubtask,
+            deleteNode,
+            deleteActive,
+            updateStatus,
+            toggleActiveStatus,
+            handleTreeToggleStatus,
+            handleNodeDrop,
+            saveActiveTitle,
+            saveActiveDetails,
+            countNestedChildren,
+            contextMenu,
+            showContextMenu,
+            handleContextAction,
+            isAlwaysOnTop,
+            toggleAlwaysOnTop,
+            showIntroModal,
+            renderedIntroMarkdown,
+          };
+        },
+      });
+
+      app.component("tree-node", TreeNode);
+      app.mount("#app");
+    </script>
+  </body>
+</html>
